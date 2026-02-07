@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nohesi HUD</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #hud-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 400px;
+            z-index: 1000;
+        }
+
+        .multipliers-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 0 16px;
+        }
+
+        .multiplier-item {
+            text-align: center;
+        }
+
+        .multiplier-item:first-child {
+            text-align: left;
+        }
+
+        .multiplier-label {
+            color: white;
+            font-size: 11px;
+            opacity: 0.8;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .multiplier-value {
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .total-multiplier-container {
+            position: relative;
+        }
+
+        .total-multiplier-accent {
+            position: absolute;
+            left: -32px;
+            top: 50%;
+            transform: translateY(-50%) skewX(-12deg);
+            width: 24px;
+            height: 4px;
+            background: linear-gradient(to right, transparent, #ef4444, #dc2626);
+        }
+
+        .total-multiplier-glow {
+            position: absolute;
+            inset: 0;
+            background: #facc15;
+            filter: blur(16px);
+            opacity: 0.5;
+        }
+
+        .total-multiplier-value {
+            position: relative;
+            color: #facc15;
+            font-size: 28px;
+            font-weight: bold;
+            filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.8));
+        }
+
+        .points-banner {
+            position: relative;
+            background: white;
+            color: black;
+            padding: 12px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            clip-path: polygon(2% 0%, 100% 0%, 98% 100%, 0% 100%);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            margin-top: 8px;
+        }
+
+        .points-text {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            transition: color 0.15s ease, transform 0.15s ease, text-shadow 0.15s ease;
+        }
+
+        .timer-text {
+            font-size: 20px;
+            font-weight: 600;
+            transition: color 0.15s ease, transform 0.15s ease, text-shadow 0.15s ease;
+        }
+
+        .pb-label {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            opacity: 0.75;
+        }
+
+        .crash-flash {
+            color: #ef4444;
+            text-shadow: 0 0 10px rgba(239, 68, 68, 0.9);
+            transform: scale(1.05);
+        }
+
+        .gain-flash {
+            color: #22c55e;
+            text-shadow: 0 0 10px rgba(34, 197, 94, 0.9);
+            transform: scale(1.05);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        #hud-container.show {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="hud-container" class="hidden">
+        <div class="multipliers-row">
+            <div class="multiplier-item">
+                <div class="multiplier-label">Speed</div>
+                <div class="multiplier-value" id="speed-multiplier">8.5x</div>
+            </div>
+            
+            <div class="multiplier-item">
+                <div class="multiplier-label">Proximity</div>
+                <div class="multiplier-value" id="proximity-multiplier">1.0x</div>
+            </div>
+            
+            <div class="multiplier-item">
+                <div class="multiplier-label">Combo</div>
+                <div class="multiplier-value" id="combo-multiplier">221.9x</div>
+            </div>
+
+            <div class="multiplier-item total-multiplier-container">
+                <div class="total-multiplier-accent"></div>
+                <div class="total-multiplier-glow"></div>
+                <div class="total-multiplier-value" id="total-multiplier">2.5x</div>
+            </div>
+        </div>
+
+        <div class="points-banner">
+            <div class="points-text" id="points-display">624,887 PTS</div>
+            <div class="timer-text" id="timer-display">24:09</div>
+        </div>
+
+        <div class="points-banner">
+            <div class="points-text pb-label">PERSONAL BEST (PB)</div>
+            <div class="points-text" id="personal-best-display">0 PTS</div>
+        </div>
+    </div>
+
+    <script>
+        let hudData = {
+            points: 624887,
+            time: 1449,
+            speedMultiplier: 8.5,
+            proximityMultiplier: 1.0,
+            comboMultiplier: 221.9,
+            totalMultiplier: 2.5,
+            personalBest: 0
+        };
+
+        let timerInterval = null;
+        let isVisible = false;
+
+        function formatPoints(pts) {
+            return pts.toLocaleString('en-US') + ' PTS';
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updateHUD() {
+            document.getElementById('points-display').textContent = formatPoints(hudData.points);
+            document.getElementById('timer-display').textContent = formatTime(hudData.time);
+            document.getElementById('speed-multiplier').textContent = hudData.speedMultiplier.toFixed(1) + 'x';
+            document.getElementById('proximity-multiplier').textContent = hudData.proximityMultiplier.toFixed(1) + 'x';
+            document.getElementById('combo-multiplier').textContent = hudData.comboMultiplier.toFixed(1) + 'x';
+            document.getElementById('total-multiplier').textContent = hudData.totalMultiplier.toFixed(1) + 'x';
+            document.getElementById('personal-best-display').textContent = formatPoints(hudData.personalBest);
+        }
+
+        function showHUD() {
+            const container = document.getElementById('hud-container');
+            container.classList.remove('hidden');
+            container.classList.add('show');
+            isVisible = true;
+            updateHUD();
+        }
+
+        function hideHUD() {
+            const container = document.getElementById('hud-container');
+            container.classList.add('hidden');
+            container.classList.remove('show');
+            isVisible = false;
+        }
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            timerInterval = setInterval(() => {
+                if (hudData.time > 0) {
+                    hudData.time--;
+                    updateHUD();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function triggerCrashFlash() {
+            const pointsEl = document.getElementById('points-display');
+            const timerEl = document.getElementById('timer-display');
+
+            pointsEl.classList.add('crash-flash');
+            timerEl.classList.add('crash-flash');
+
+            setTimeout(() => {
+                pointsEl.classList.remove('crash-flash');
+                timerEl.classList.remove('crash-flash');
+            }, 400);
+        }
+
+        function triggerGainFlash() {
+            const pointsEl = document.getElementById('points-display');
+            pointsEl.classList.add('gain-flash');
+
+            setTimeout(() => {
+                pointsEl.classList.remove('gain-flash');
+            }, 250);
+        }
+
+        window.addEventListener('message', function(event) {
+            const data = event.data;
+
+            switch(data.action) {
+                case 'show':
+                    showHUD();
+                    if (data.startTimer) startTimer();
+                    break;
+
+                case 'hide':
+                    hideHUD();
+                    stopTimer();
+                    break;
+
+                case 'update':
+                    if (data.points !== undefined) {
+                        if (data.points > hudData.points) triggerGainFlash();
+                        hudData.points = data.points;
+                    }
+
+                    if (data.time !== undefined) hudData.time = data.time;
+                    if (data.speedMultiplier !== undefined) hudData.speedMultiplier = data.speedMultiplier;
+                    if (data.proximityMultiplier !== undefined) hudData.proximityMultiplier = data.proximityMultiplier;
+                    if (data.comboMultiplier !== undefined) hudData.comboMultiplier = data.comboMultiplier;
+                    if (data.totalMultiplier !== undefined) hudData.totalMultiplier = data.totalMultiplier;
+                    if (data.personalBest !== undefined) hudData.personalBest = data.personalBest;
+
+                    if (isVisible) updateHUD();
+                    break;
+
+                case 'reset':
+                    hudData = {
+                        points: 0,
+                        time: 1449,
+                        speedMultiplier: 1.0,
+                        proximityMultiplier: 1.0,
+                        comboMultiplier: 1.0,
+                        totalMultiplier: 1.0,
+                        personalBest: hudData.personalBest
+                    };
+                    updateHUD();
+                    break;
+
+                case 'crashFlash':
+                    triggerCrashFlash();
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>
