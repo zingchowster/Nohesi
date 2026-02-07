@@ -25,7 +25,7 @@ Config.MoneyPerPoint = 0.1
 --  'qb-core' = QBCore
 --  'esx'     = ESX
 --  'none'    = no money / just logging
-Config.Framework = 'qbox'   -- YOU: on Qbox, leave this as 'qbox'
+Config.Framework = 'qbox'
 
 -- How long after a crash before you can start earning points again (seconds)
 -- Set to 0 if you don't want any crash timeout
